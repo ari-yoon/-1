@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
+  body { background: #d0d0d0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+  .modal { background: #fff; border-radius: 4px; width: 700px; box-shadow: 0 4px 20px rgba(0,0,0,0.25); overflow: hidden; }
+
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 12px; }
+  .modal-title { font-size: 15px; font-weight: 700; color: #111; }
+  .close-btn { background: none; border: none; cursor: pointer; color: #555; font-size: 20px; line-height: 1; padding: 0 2px; }
+  .close-btn:hover { color: #111; }
+
+  .modal-body { padding: 0 20px; }
+
+  .filter-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .filter-note { font-size: 12px; color: #444; }
+  .period-group { display: flex; gap: 14px; align-items: center; }
+  .period-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #333; cursor: pointer; }
+  .period-label input[type="radio"] { accent-color: #1a56db; width: 13px; height: 13px; cursor: pointer; margin: 0; }
+  .search-btn { padding: 4px 14px; font-size: 12px; background: #fff; color: #333; border: 1px solid #aaa; border-radius: 3px; cursor: pointer; }
+  .search-btn:hover { background: #f3f4f6; }
+
+  .loading-bar { height: 2px; background: #e5e7eb; overflow: hidden; display: none; }
+  .loading-bar.active { display: block; }
+  .loading-bar-inner { height: 100%; width: 0%; background: #1a56db; animation: loadprogress 1.2s ease forwards; }
+  @keyframes loadprogress { 0%{width:0%} 60%{width:75%} 100%{width:100%} }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  thead tr { background: #f5f5f5; }
+  th { padding: 8px 10px; text-align: center; font-weight: 600; color: #333; border: 1px solid #ddd; font-size: 13px; }
+  td { padding: 10px; text-align: center; color: #333; border: 1px solid #ddd; vertical-align: middle; word-break: break-all; }
+
+  .empty-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 44px 0; gap: 10px; }
+  .empty-text { font-size: 13px; color: #999; }
+
+  .result-note { font-size: 12px; color: #444; margin-top: 8px; min-height: 16px; }
+
+  .modal-footer { display: flex; justify-content: flex-end; gap: 6px; padding: 14px 20px; }
+  .btn-cancel { padding: 6px 18px; font-size: 13px; background: #fff; border: 1px solid #aaa; border-radius: 3px; cursor: pointer; color: #333; }
+  .btn-cancel:hover { background: #f3f4f6; }
+  .btn-confirm { padding: 6px 18px; font-size: 13px; background: #1a56db; color: #fff; border: none; border-radius: 3px; cursor: pointer; }
+  .btn-confirm:hover { background: #1648c0; }
+</style>
+
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#ccc;">
+<div class="modal">
+  <div class="modal-header">
+    <span class="modal-title">상점 소개 변경 이력</span>
+    <button class="close-btn">✕</button>
+  </div>
+
+  <div class="modal-body">
+    <div class="filter-row">
+      <span class="filter-note">* 조회 기간</span>
+      <div class="period-group">
+        <label class="period-label"><input type="radio" name="period" value="1" checked onchange="selPeriod(this)"> 1개월</label>
+        <label class="period-label"><input type="radio" name="period" value="6" onchange="selPeriod(this)"> 6개월</label>
+        <label class="period-label"><input type="radio" name="period" value="12" onchange="selPeriod(this)"> 1년</label>
+      </div>
+      <button class="search-btn" onclick="doSearch()">조회</button>
+    </div>
+
+    <div class="loading-bar" id="lb"><div class="loading-bar-inner" id="lbi"></div></div>
+
+    <table>
+      <thead><tr>
+        <th style="width:28%">수정 전</th>
+        <th style="width:28%">수정 후</th>
+        <th style="width:26%">수정일시</th>
+        <th style="width:18%">처리자</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+
+    <div class="result-note" id="note"></div>
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn-cancel">취소</button>
+    <button class="btn-confirm">확인</button>
+  </div>
+</div>
+</div>
+
+<script>
+const MOCK = {
+  1: [],
+  6: [
+    {b:'안녕하세요, 저희 상점입니다.', a:'안녕하세요! 최고의 상품을 제공합니다.', d:'2025-10-12 14:33:02', h:'관리자'},
+    {b:'좋은 제품 판매합니다.', a:'안녕하세요, 저희 상점입니다.', d:'2025-09-01 09:10:45', h:'admin01'},
+  ],
+  12: [
+    {b:'안녕하세요, 저희 상점입니다.', a:'안녕하세요! 최고의 상품을 제공합니다.', d:'2025-10-12 14:33:02', h:'관리자'},
+    {b:'좋은 제품 판매합니다.', a:'안녕하세요, 저희 상점입니다.', d:'2025-09-01 09:10:45', h:'admin01'},
+    {b:'첫 번째 소개글입니다.', a:'좋은 제품 판매합니다.', d:'2025-04-22 11:05:30', h:'admin01'},
+  ]
+};
+
+let period = 1;
+
+function selPeriod(el) { period = parseInt(el.value); }
+
+function emptyHTML() {
+  return `<tr><td colspan="4" style="border:none;padding:0;">
+    <div class="empty-wrap">
+      <svg width="48" height="44" viewBox="0 0 48 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="7" width="46" height="36" rx="2" stroke="#ccc" stroke-width="2" fill="#f9f9f9"/>
+        <path d="M1 13h46" stroke="#ccc" stroke-width="1.5"/>
+        <rect x="8" y="1" width="6" height="12" rx="1.5" fill="#ccc"/>
+        <rect x="34" y="1" width="6" height="12" rx="1.5" fill="#ccc"/>
+        <path d="M16 26h16M20 32h8" stroke="#ccc" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="empty-text">데이터 없음</span>
+    </div>
+  </td></tr>`;
+}
+
+function doSearch() {
+  const lb = document.getElementById('lb'), lbi = document.getElementById('lbi');
+  const tbody = document.getElementById('tbody'), note = document.getElementById('note');
+  lb.classList.add('active');
+  lbi.style.animation = 'none'; lbi.offsetHeight; lbi.style.animation = '';
+  note.textContent = '';
+  setTimeout(() => {
+    lb.classList.remove('active');
+    const rows = MOCK[period];
+    const label = period === 1 ? '1개월' : period === 6 ? '6개월' : '1년';
+    note.textContent = `* 최근 ${label}을 대상으로 조회된 변경 이력입니다.`;
+    tbody.innerHTML = rows.length
+      ? rows.map(r => `<tr><td style="text-align:left">${r.b}</td><td style="text-align:left">${r.a}</td><td>${r.d}</td><td>${r.h}</td></tr>`).join('')
+      : emptyHTML();
+  }, 900);
+}
+
+doSearch();
+</script>
